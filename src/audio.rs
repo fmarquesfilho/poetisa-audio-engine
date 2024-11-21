@@ -1,45 +1,43 @@
-use kira::manager::{AudioManager, AudioManagerSettings};
-use kira::clock::ClockSpeed;
-use std::sync::{Arc, Mutex};
-use crate::sequencer::Sequencer;
+use fundsp::hacker::*;
+use kira::{
+    manager::{AudioManager, AudioManagerSettings},
+    sound::static_sound::{StaticSoundData, StaticSoundSettings},
+};
 
-pub fn start_audio_playback(
-    sequencer: Arc<Mutex<Sequencer>>,
-    bpm: f32,
-) -> Result<AudioManager, Box<dyn std::error::Error>> {
-    // Initialize the audio manager
-    let mut manager = AudioManager::new(AudioManagerSettings::default())?;
-    let beat_duration = 60.0 / bpm / 4.0;
+/// The Audio Engine responsible for playing and managing sound
+pub struct AudioEngine {
+    pub manager: AudioManager,
+    pub tracks: Vec<Box<dyn AudioNode<Sample = f64>>>, // Each track is a synthesizer
+}
 
-    // Add a clock with the specified speed
-    let mut clock = manager.add_clock(ClockSpeed::SecondsPerTick(beat_duration.into()))?;
-    let seq_clone = Arc::clone(&sequencer);
+impl AudioEngine {
+    /// Creates a new audio engine
+    pub fn new(num_tracks: usize) -> Self {
+        let manager = AudioManager::new(AudioManagerSettings::default()).unwrap();
+        let mut tracks = Vec::new();
 
-    // Start the clock (no need for ? here)
-    clock.start();
-
-    // Main loop to check the clock and play notes
-    std::thread::spawn(move || {
-        loop {
-            // Get the current time of the clock
-            let time = clock.time();
-            let current_beat = (time.ticks as usize) % 16;
-
-            let mut seq = seq_clone.lock().unwrap();
-            for (i, instrument) in seq.instruments.iter().enumerate() {
-                if instrument[current_beat] {
-                    // Play the corresponding note
-                    println!("Instrument {} playing at beat {}", i, current_beat);
-                    // Add code to trigger sound playback here
-                }
-            }
-
-            seq.beat = current_beat;
-
-            // Sleep for a short duration to prevent busy-waiting
-            std::thread::sleep(std::time::Duration::from_millis(10));
+        // Initialize each track with a simple sine wave synthesizer
+        for _ in 0..num_tracks {
+            let synth = Box::new(sine_hz(440.0) * envelope(|t| if t < 0.1 { 1.0 - t * 10.0 } else { 0.0 }));
+            tracks.push(synth);
         }
-    });
 
-    Ok(manager)
+        Self { manager, tracks }
+    }
+
+    /// Play a note on a specific track
+    pub fn play_note(&self, track_index: usize, frequency: f64) {
+        if let Some(track) = self.tracks.get(track_index) {
+            let mut instance = track.clone();
+            instance.set_frequency(frequency);
+            self.manager
+                .play(instance, StaticSoundSettings::default())
+                .unwrap();
+        }
+    }
+
+    /// Stop all sounds
+    pub fn stop(&self) {
+        self.manager.stop_all();
+    }
 }

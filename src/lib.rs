@@ -1,21 +1,40 @@
-pub mod sequencer;
-pub mod audio;
-pub mod web_socket;
+mod audio;
+mod sequencer;
 
-pub use sequencer::Sequencer;
-pub use web_socket::start_websocket_server;
+use wasm_bindgen::prelude::*;
+use sequencer::Sequencer;
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+#[wasm_bindgen]
+pub struct WasmSequencer {
+    sequencer: Sequencer,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[wasm_bindgen]
+impl WasmSequencer {
+    /// Create a new WasmSequencer instance
+    #[wasm_bindgen(constructor)]
+    pub fn new(bpm: f64, num_tracks: usize, num_beats: usize) -> Self {
+        let sequencer = Sequencer::new(bpm, num_tracks, num_beats);
+        Self { sequencer }
+    }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    /// Set the BPM
+    pub fn set_bpm(&mut self, bpm: f64) {
+        self.sequencer.set_bpm(bpm);
+    }
+
+    /// Toggle a step in the pattern
+    pub fn toggle_step(&mut self, track: usize, beat: usize) {
+        self.sequencer.toggle_step(track, beat);
+    }
+
+    /// Play the sequence
+    pub fn play(&mut self) {
+        self.sequencer.play();
+    }
+
+    /// Stop the sequence
+    pub fn stop(&mut self) {
+        self.sequencer.stop();
     }
 }
