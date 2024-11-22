@@ -1,58 +1,25 @@
-use kira::sound::static_sound::{StaticSoundData, StaticSoundSettings};
-use kira::manager::{AudioManager, AudioManagerSettings};
+use std::error::Error;
 
-/// The Audio Engine responsible for playing and managing sound
 pub struct AudioEngine {
-    pub manager: AudioManager,
-    pub tracks: Vec<Box<dyn Fn(f64) -> f64>>, // Each track is a synthesizer
+    tracks: Vec<String>, // List of paths to audio files
 }
 
 impl AudioEngine {
-    /// Creates a new audio engine
-    pub fn new(num_tracks: usize) -> Self {
-        let manager = AudioManager::new(AudioManagerSettings::default()).unwrap();
-        let mut tracks: Vec<Box<dyn Fn(f64) -> f64>> = Vec::new();
-
-        // Initialize each track with a simple sine wave synthesizer
-        for _ in 0..num_tracks {
-            let synth: Box<dyn Fn(f64) -> f64> =
-                Box::new(move |t: f64| (2.0 * std::f64::consts::PI * 440.0 * t).sin());
-            tracks.push(synth);
-        }
-
-        Self { manager, tracks }
+    pub fn new(file_paths: Vec<&str>) -> Result<Self, Box<dyn Error>> {
+        let tracks = file_paths.iter().map(|&s| s.to_string()).collect();
+        Ok(AudioEngine { tracks })
     }
 
-    /// Play a note on a specific track
-    pub fn play_note(&self, track_index: usize, frequency: f64) {
+    pub fn play_track(&self, track_index: usize) {
+        // Logic to play the audio track at the specified index
         if let Some(track) = self.tracks.get(track_index) {
-            // Generate audio samples for 1 second
-            let sample_rate = 44100;
-            let duration_seconds = 1.0;
-            let total_samples = (sample_rate as f64 * duration_seconds) as usize;
-
-            let audio_samples: Vec<f32> = (0..total_samples)
-                .map(|i| {
-                    let t = i as f64 / sample_rate as f64;
-                    (track)(t) as f32
-                })
-                .collect();
-
-            // Create StaticSoundData from raw samples
-            let sound_data = StaticSoundData::from_samples(
-                sample_rate as u32,
-                audio_samples,
-                StaticSoundSettings::default(),
-            )
-            .unwrap();
-
-            // Play sound data
-            self.manager.play(sound_data).unwrap();
+            // Play the track (this is a placeholder, integrate with an audio playback library)
+            println!("Playing track: {}", track);
         }
     }
 
-    /// Stop all sounds
     pub fn stop(&self) {
-        self.manager.stop_all();
+        // Logic to stop all audio tracks
+        println!("Stopping all audio tracks.");
     }
 }

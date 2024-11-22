@@ -1,58 +1,50 @@
-use crate::audio::AudioEngine;
-
-/// A simple step sequencer
 pub struct Sequencer {
     pub bpm: f64,
     pub beat_index: usize,
-    pub pattern: Vec<Vec<bool>>, // A 2D vector to represent the pattern for each track
-    pub audio_engine: AudioEngine,
+    pub pattern: Vec<Vec<bool>>, // Each track has a pattern of beats (true = active, false = inactive)
 }
 
 impl Sequencer {
-    /// Creates a new sequencer with the given parameters
-    pub fn new(bpm: f64, num_tracks: usize, num_beats: usize) -> Self {
-        let audio_engine = AudioEngine::new(num_tracks);
-        let pattern = vec![vec![false; num_beats]; num_tracks];
-
-        Self {
+    pub fn new(bpm: f64, num_beats: usize, num_tracks: usize) -> Self {
+        let pattern = vec![vec![false; num_beats]; num_tracks]; // Initialize a pattern for each track
+        Sequencer {
             bpm,
             beat_index: 0,
             pattern,
-            audio_engine,
         }
     }
 
-    /// Set the BPM
+    // Start or continue playing the sequence
+    pub fn play(&mut self) {
+        // Implement playback logic here (e.g., loop through beats)
+    }
+
+    // Stop playback
+    pub fn stop(&mut self) {
+        // Implement stop logic here
+    }
+
+    // Get a reference to the active track
+    pub fn get_active_track(&self, track_index: usize) -> Option<&Vec<bool>> {
+        self.pattern.get(track_index) // Returns the track's pattern if valid
+    }
+
+    // Set a new BPM
     pub fn set_bpm(&mut self, bpm: f64) {
         self.bpm = bpm;
     }
 
-    /// Toggle a step in the pattern
+    // Toggle the step (on/off) in a specific track's pattern
     pub fn toggle_step(&mut self, track: usize, beat: usize) {
         if let Some(track_pattern) = self.pattern.get_mut(track) {
             if let Some(step) = track_pattern.get_mut(beat) {
-                *step = !*step;
+                *step = !*step; // Toggle the step (true/false)
             }
         }
     }
 
-    /// Play the sequence for one cycle
-    pub fn play(&mut self) {
-        let interval = 60.0 / self.bpm / 4.0; // 16th notes
-        let num_beats = self.pattern[0].len();
-
-        for (track_index, track) in self.pattern.iter().enumerate() {
-            if track[self.beat_index] {
-                let frequency = 220.0 * (track_index + 1) as f64; // Example: Different pitches for tracks
-                self.audio_engine.play_note(track_index, frequency);
-            }
-        }
-
-        self.beat_index = (self.beat_index + 1) % num_beats;
-    }
-
-    /// Stop the sequence
-    pub fn stop(&mut self) {
-        self.audio_engine.stop();
+    // Get the number of tracks in the sequencer
+    pub fn num_tracks(&self) -> usize {
+        self.pattern.len()
     }
 }
