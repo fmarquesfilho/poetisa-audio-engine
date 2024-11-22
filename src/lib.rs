@@ -1,61 +1,78 @@
-mod audio;
-mod sequencer;
-
+use kira::{
+    manager::{AudioManager, AudioManagerSettings},
+    clock::{ClockHandle, ClockSpeed},
+    sound::static_sound::{StaticSoundData, StaticSoundHandle},
+    tween::Tween,
+};
 use wasm_bindgen::prelude::*;
-use sequencer::Sequencer;
-use audio::AudioEngine;
+use js_sys::Function;
+use std::sync::{Arc, Mutex};
 
 #[wasm_bindgen]
-pub struct WasmSequencer {
-    sequencer: Sequencer,
-    audio_engine: AudioEngine, // Add the AudioEngine here to manage sound playback
+pub struct Sequencer {
+    manager: AudioManager,
+    clock: ClockHandle,
+    sounds: Vec<StaticSoundHandle>,
+    step_callback: Option<Function>,
+    current_step: Arc<Mutex<usize>>,
 }
 
 #[wasm_bindgen]
-impl WasmSequencer {
-    /// Create a new WasmSequencer instance
+impl Sequencer {
     #[wasm_bindgen(constructor)]
-    pub fn new(bpm: f64, num_tracks: usize, num_beats: usize, audio_file_paths: Vec<String>) -> Self {
-        // Convert Vec<String> to Vec<&str> for AudioEngine and Sequencer
-        let audio_file_paths_str: Vec<&str> = audio_file_paths.iter().map(|s| s.as_str()).collect();
-
-        let sequencer = Sequencer::new(bpm, num_beats, num_tracks); // Create sequencer with the number of tracks
-        let audio_engine = AudioEngine::new(audio_file_paths_str).expect("Failed to create audio engine");
-
-        Self { sequencer, audio_engine }
+    pub fn new(bpm: f32) -> Result<Sequencer, JsValue> {
+        let mut manager = AudioManager::new(AudioManagerSettings::default())
+            .map_err(|e| JsValue::from_str(&format!("Failed to create AudioManager: {:?}", e)))?;
+        
+        let clock = manager
+            .add_clock(ClockSpeed::TicksPerMinute(bpm.into()))
+            .map_err(|e| JsValue::from_str(&format!("Failed to create clock: {:?}", e)))?;
+        
+        Ok(Sequencer {
+            manager,
+            clock,
+            sounds: Vec::new(),
+            step_callback: None,
+            current_step: Arc::new(Mutex::new(0)),
+        })
     }
 
-    /// Set the BPM
-    pub fn set_bpm(&mut self, bpm: f64) {
-        self.sequencer.set_bpm(bpm);
+    pub fn load_sound(&mut self, sound_data: Vec<u8>) -> Result<usize, JsValue> {
+        let cursor = std::io::Cursor::new(sound_data);
+        let sound = StaticSoundData::from_cursor(cursor)
+            .map_err(|e| JsValue::from_str(&format!("Failed to load sound: {:?}", e)))?;
+        
+        let sound_handle = self
+            .manager
+            .play(sound)
+            .map_err(|e| JsValue::from_str(&format!("Failed to play sound: {:?}", e)))?;
+        
+        self.sounds.push(sound_handle);
+        Ok(self.sounds.len() - 1)
     }
 
-    /// Toggle a step in the pattern
-    pub fn toggle_step(&mut self, track: usize, beat: usize) {
-        self.sequencer.toggle_step(track, beat);
+    pub fn set_step_callback(&mut self, callback: Option<Function>) {
+        self.step_callback = callback;
     }
 
-    /// Play the sequence
-    pub fn play(&mut self) {
-        self.sequencer.play();
-        // Play the corresponding audio track for each active step
-        for track_index in 0..self.sequencer.num_tracks() {
-            if let Some(track) = self.sequencer.get_active_track(track_index) {
-                if track[self.sequencer.beat_index] { // Check if the current beat is active
-                    self.audio_engine.play_track(track_index);
-                }
-            }
-        }
+    pub fn start(&mut self) -> Result<(), JsValue> {
+        self.clock
+            .set_speed(ClockSpeed::TicksPerMinute(120.0), Tween::default());
+        Ok(())
     }
 
-    /// Stop the sequence and audio playback
-    pub fn stop(&mut self) {
-        self.sequencer.stop();
-        self.audio_engine.stop(); // Stop all audio tracks
+    pub fn stop(&mut self) -> Result<(), JsValue> {
+        self.clock
+            .set_speed(ClockSpeed::TicksPerMinute(0.0), Tween::default());
+        Ok(())
     }
 
-    /// Toggle a track (enable or disable it)
-    pub fn toggle_track(&mut self, track_index: usize) {
-        self.sequencer.toggle_step(track_index, self.sequencer.beat_index); // Toggle the track's current step
+    pub fn play_step(&mut self, sound_index: usize) -> Result<(), JsValue> {
+        self.sounds[sound_index].resume(Tween::default());
+        Ok(())
+    }
+
+    pub fn get_current_step(&self) -> usize {
+        *self.current_step.lock().unwrap()
     }
 }
